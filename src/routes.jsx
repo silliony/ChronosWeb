@@ -13,8 +13,8 @@ import Ranking from "./Pages/Ranking";
 import Sorteio, { SorteioAntigo } from "./Pages/Sorteio";
 import Sumo from "./Pages/Sumo/Sumo";
 import Apresentacao from "./Pages/Apresentacao";
-import Cronometro from "./Pages/Cronometro";
-import CronometroFix from "./Pages/CronometroFix";
+import CronometroSQL from "./Pages/CronometroSQL";
+
 
 const router = createBrowserRouter(
     createRoutesFromElements(
@@ -26,9 +26,9 @@ const router = createBrowserRouter(
             <Route path="/classificacao" element={<Ranking />} />
             <Route path="/sorteio" element={<Sorteio />} />
             <Route path="/sumo" element={<Sumo />} />
-            <Route path="/cronometro" element={<CronometroFix />} />
+            <Route path="/cronometro" element={<CronometroSQL />} />
             <Route path="/apresentacao" element={<Apresentacao />} />
-            <Route path="/test" element={<SorteioAntigo />} />
+            <Route path="/test" element={<CronometroSQL />} />
         </Route>
     )
 );

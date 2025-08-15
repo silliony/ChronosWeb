@@ -1,6 +1,6 @@
 import { Checkbox, ConfigProvider, Drawer, Flex, Input, Select, Typography, message } from "antd";
 import NavBar from "../../Components/NavBar";
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Button from "../../Components/Button";
 import api from "../../Services/api"
 import Connection from "../../Components/SerialConnection/Connection";
@@ -12,232 +12,132 @@ const { Search } = Input;
 const { Option } = Select;
 
 function Cronometro() {
-    const [disableRepescagem, setDisableRepescagem] = useState(false);
-    const [disableRound, setDisableRound] = useState(false);
-    const [disableHeats, setDisableHeats] = useState(false);
-    const [disableHeat3, setDisableHeat3] = useState(false);
-    const [categoria, setCategoria] = useState([]);
-    const [round, setRound] = useState([]);
-    const [heat, setHeat] = useState([]);
+    const [categoria, setCategoria] = useState(null);
+    const [etapa, setEtapa] = useState(null);
+    const [bateria, setBateria] = useState(null);
+    const [tentativa, setTentativa] = useState(null);
+    const [equipes, setEquipes] = useState([]);
     const [equipe, setEquipe] = useState([]);
-    const [fetchedTeams, setFetchedTeams] = useState([]);
-    const [fetchedTentativa, setFetchedTentativa] = useState([]);
-    const [selectOptions, setSelectOptions] = useState([]);
     const [time, setTime] = useState(0); // Armazena o tempo em milissegundos
     const [isRunning, setIsRunning] = useState(false); // Controla se o cronômetro está rodando
-    const [checkpoints, setCheckpoints] = useState([0,0,0,0,0,0,0,0,0,0]);
+    const [checkpoints, setCheckpoints] = useState([]);
     const [disableSensors, setDisableSensors] = useState(true);
     const [selectedCheckpoint, setSelectedCheckpoint] = useState([]);
-    const [tentativa, setTentativa] = useState("-");
+    const sendData = 0;
 
     const startTimeRef = useRef(0); // Remove a tipagem explícita
 
     const [messageApi, contextHolder] = message.useMessage();
 
-    // Faz o fetch das equipes no back
-    const fetchTeams = async () => {
-        try{
-            const response = await api.get("/equipes");
-            setFetchedTeams(response.data);
+    // Fetch equipes do banco de dados
+    const fetchEquipesPorCategoria = async (e) => {
+        try {
+            const response = await api.get(`/equipe/c/${e}`);
+            setEquipes(response.data);
+            setEquipe(null);
         } catch (error) {
-            console.log(error);
+            console.log(error.message);
+            displayMessage("error", "Erro na aquisição de equipes");
         }
     }
 
-    // Popula o select das equipes
-    useEffect(() => {
-        fetchTeams();
-    }, []);
-
-    // Logica para disabilitar selects
-    useEffect(() => {
-        switch (categoria) {
-            case 1:
-                filterTeams(1);
-                setDisableRepescagem(false);
-                setDisableHeat3(false);
-                setDisableRound(false);
-                setDisableHeats(false);
-                setEquipe([]);
-                setRound(null);
-                break;
-            case 2:
-                filterTeams(2);
-                setDisableRepescagem(false);
-                setDisableHeat3(true);
-                setDisableRound(false);
-                setDisableHeats(false);
-                setEquipe([]);
-                setRound(null);
-                break;
+    // Fetch tentiva da equipe
+    const fetchTentativa = async () => {
+        const req = {
+            etapa: etapa,
+            bateria: bateria,
+            tentativa: tentativa
         }
-    }, [categoria]);
-    useEffect(() => {
-        switch (round) {
-            case 0:
-                setDisableHeats(false);
-                break;
-            case 1:
-                setDisableHeats(true);
-                setHeat(null);
-                break;
-            case 2:
-                setDisableHeats(true);
-                setHeat(null);
-                break;
-            case 3:
-                setDisableHeats(true);
-                setHeat(null);
-                break;
-        }
-    }, [round]);
-    useEffect(() => {
-       setHeat(null);
-    }, [equipe]);
 
-    // Função para filtrar times do select
-    const filterTeams = (i) => {
-        let filteredTeams = fetchedTeams; // Inicializa com todos os times
+        try {
+            const response = await api.get(`/tentativa/${equipe}`, { params: req });
+            if (response.data.checkpoints == undefined) {
+                setCheckpoints([]);
+                return
+            };
 
-        if (fetchedTeams.length > 0) {
-            if (i) {
-                // Filtra os times que possuem a categoria igual a i
-                filteredTeams = fetchedTeams.filter((team) => team.categoria === i);
-            }
+            const ms = response.data.checkpoints.map(e => stringToMls(e.tempo));
+
+            setCheckpoints(ms);
             
-            // Mapeia os times filtrados para o formato esperado
-            const options = filteredTeams.map((team) => ({
-                value: team._id,
-                label: team.nome
-            }));
-            
-            setSelectOptions(options);  // Atualiza selectOptions após filtragem
-        }
-    };
-   
-    // Fetch da etapa correspondente a equipe
-    const fetchRound = async () => {
-
-        const fetchArrancada = async () => {
-            try {
-                const response = await api.get(`/arrancada/team/${equipe}`);
-                setFetchedTentativa(e => response.data);
-
-            } catch (error) {
-                console.log(error);
-            }
-        }
-        const fetchClassificatoria = async () => {
-            try {
-                const response = await api.get(`/classificatorias/team/${equipe}`);
-                setFetchedTentativa(response.data);
-
-            } catch (error) {
-                console.log(error);
-            }
-        }
-        const fetchRepescagem = async () => {
-            try {
-                const response = await api.get(`/repescagem/team/${equipe}`);
-                setFetchedTentativa(response.data);
-
-            } catch (error) {
-                console.log(error);
-            }
-        }
-        const fetchFinal = async () => {
-            try {
-                const response = await api.get(`/finais/team/${equipe}`);
-                setFetchedTentativa(response.data);
-
-            } catch (error) {
-                console.log(error);
-            }
-        }
-
-        // Escolhe qual fetch realizar dependendo do selecionado
-        if (equipe.length != 0) {
-            switch (round) {
-                case 0:
-                    await fetchClassificatoria();
-                    break;
-                case 1:
-                    await fetchRepescagem();
-                    break;
-                case 2:
-                    await fetchFinal();
-                    break;
-                case 3:
-                    await fetchArrancada();
-                    break;
-            }
+        } catch (error) {
+            displayMessage("error", "Erro na aquisição de tentativas ");
         }
     }
 
-    // Toda vez que mudar a tentativa, chamar updateTentativa()
+    // Faz o fetch sempre que alterar o select
     useEffect(() => {
-        updateTentativa();
-    }, [fetchedTentativa]);
+        if (categoria != null & tentativa != null & equipe != null & bateria != null & etapa != null) {
+            fetchTentativa();
+        }
+    }, [tentativa, equipe, bateria, etapa]);
 
-    // Atualiza o texto de tentativa e qual tentativa esta sendo realizada
-    const updateTentativa = () => {
-        if (fetchedTentativa != null && fetchedTentativa != 0) {
-            let tentativa;
-            let bateria;
-            console.log(fetchedTentativa);
-            if (heat === null || heat === 0) {
-                bateria = fetchedTentativa.bateria[0];
-                if (bateria.tempo_total_1 === 0 && bateria.tempo_total_2 === 0) {
-                    tentativa = "1° tentativa";
-                } else if (bateria.tempo_total_1 != 0 && bateria.tempo_total_2 === 0) {
-                    tentativa = "2° tentativa";
-                } else if (bateria.tempo_total_1 != 0 && bateria.tempo_total_2 != 0) {
-                    tentativa = "Tentativas realizadas";
-                }
-            } else if (heat === 1) {
-                bateria = fetchedTentativa.bateria[1];
-                if (bateria.tempo_total_1 === 0 && bateria.tempo_total_2 === 0) {
-                    tentativa = "1° tentativa";
-                } else if (bateria.tempo_total_1 != 0 && bateria.tempo_total_2 === 0) {
-                    tentativa = "2° tentativa";
-                } else if (bateria.tempo_total_1 != 0 && bateria.tempo_total_2 != 0) {
-                    tentativa = "Tentativas realizadas";
-                }
-            } else if (heat === 2) {
-                bateria = fetchedTentativa.bateria[2];
-                if (bateria.tempo_total_1 === 0 && bateria.tempo_total_2 === 0) {
-                    tentativa = "1° tentativa";
-                } else if (bateria.tempo_total_1 != 0 && bateria.tempo_total_2 === 0) {
-                    tentativa = "2° tentativa";
-                } else if (bateria.tempo_total_1 != 0 && bateria.tempo_total_2 != 0) {
-                    tentativa = "Tentativas realizadas";
-                }
-            }
-            setTentativa(tentativa);
-        } else {
-            setTentativa("1° tentativa");
+    // Salvar tentativa no back
+    const adicionarTentativa = async () => {
+        const e = checkpoints.map(e => mlsToString(e));
+        const query = {
+            id_equipe: equipe,
+            etapa: etapa,
+            bateria: bateria,
+            tentativa: tentativa,
+        };
+        const body = {
+            checkpoints: e
+        };
+
+        if (categoria == null & tentativa == null & equipe == null & bateria == null & etapa == null) {
+            displayMessage("error", "Não foi escolhido categoria, equipe, etapa, bateria ou tentativa");
+            return;
+        }
+
+        if (checkpoints.length == 0) {
+            displayMessage("warning", "Os checkpoints estão vazios");
+            return;
+        }
+
+        try {
+            const response = await api.post("/tentativa/add", body, { params:query });
+
+            displayMessage("success", response.data.message);
+        } catch (error) {
+            displayMessage("error", error.response?.data?.message || "Erro ao salvar checkpoints");
+        }
+
+    }
+
+    // Apagar tentativa
+    const apagarTentativa = async () => {
+        const query = {
+            etapa: etapa,
+            bateria: bateria,
+            tentativa: tentativa
+        };
+
+        try {
+            const response = await api.delete(`/tentativa/${equipe}`, { params: query });
+
+            setCheckpoints([]);
+            displayMessage("success", response.data.message);
+        } catch (error) {
+            displayMessage("error", error.response?.data?.message);
         }
     }
 
-    // Atualizar o valor da tentativa
-    useEffect(() => {
-        setFetchedTentativa([]);
-        fetchRound();
-    }, [categoria, round, heat, equipe]);
-
+    // Funcação do cronometro
     useEffect(() => {
         let intervalId;
         if (isRunning) {
           intervalId = setInterval(() => setTime(Date.now() - startTimeRef.current), 1);
         }
         return () => clearInterval(intervalId);
-      }, [isRunning]);
+    }, [isRunning]);
       
     // Funções para definir o comportamento do cronomêtro
     const onStart = () => {
         if (isRunning) return;
         startTimeRef.current = Date.now();
         setIsRunning(true);
+        setCheckpoints([]);
     }
 
     const onStop = () => {
@@ -247,7 +147,7 @@ function Cronometro() {
     const onReset = () => {
         onStop();
         setTime(0);
-        setCheckpoints([0,0,0,0,0,0,0,0,0,0]);
+        setCheckpoints([]);
     }
 
     // Função para formatar o tempo como MM:SS:MIL
@@ -263,14 +163,14 @@ function Cronometro() {
         const [minutes, seconds, milliseconds] = timeString.split(":").map(Number);
         const totalMilliseconds = (minutes * 60000) + (seconds * 1000) + milliseconds;
         return totalMilliseconds;
-    };
+    };;
 
     // Função para formatar o horário de cada checkpoint
     const formatCheckpoint = (index) => {
         const checkpoint = checkpoints[index];
         const formatedTime = "--:--:---";
 
-        if (checkpoint === 0) {
+        if (checkpoint === undefined) {
             return formatedTime;
         } else {
             return mlsToString(checkpoint);
@@ -288,7 +188,7 @@ function Cronometro() {
     const saveTime = () => {
         let e = false;
         for(let i = 0; i < 10; i++) {
-            if (checkpoints[i] == 0 && e === false) {
+            if (checkpoints[i] == undefined && e === false) {
                 let updatedCheckpoints = [...checkpoints]; // Cria uma cópia do array
                 updatedCheckpoints[i] = time; // Atualiza o valor
                 setCheckpoints(updatedCheckpoints); // Define o novo array como o estado
@@ -316,16 +216,21 @@ function Cronometro() {
           <Option value={9}>Checkpoint 9</Option>
           <Option value={10}>Checkpoint 10</Option>
         </Select>
-    );
+    )
 
     // Função para atualizar o valor do checkpoint selecionado manualmente
     const updatedCheckpoint = (e) => {
         let value = e;
-        if (e === "0") value = "00:00:000"
-        let updatedCheckpoints = [...checkpoints]; // Cria uma cópia do array
-        updatedCheckpoints[selectedCheckpoint-1] = stringToMls(value); // Atualiza o valor
-        setCheckpoints(updatedCheckpoints); // Define o novo array como o estado
-    };
+        if (e === "0") {
+            let updatedCheckpoints = [...checkpoints]; // Cria uma cópia do array
+            updatedCheckpoints[selectedCheckpoint-1] = undefined; // Atualiza o valor
+            setCheckpoints(updatedCheckpoints); // Define o novo array como o estado
+        } else {
+            let updatedCheckpoints = [...checkpoints]; // Cria uma cópia do array
+            updatedCheckpoints[selectedCheckpoint-1] = stringToMls(value); // Atualiza o valor
+            setCheckpoints(updatedCheckpoints); // Define o novo array como o estado
+        }
+    }
 
     //Função para achamar alertas
     const displayMessage = (type, content) => {
@@ -333,101 +238,13 @@ function Cronometro() {
           type: type,
           content: content,
         });
-    };
-
-    // Enviar checkpoints para o back
-    const sendData = async () => {
-        // Função para remover os valores 0 após o último valor preenchido
-        function removeTrailingZeros(array) {
-            let lastNonZeroIndex = -1;
-            
-            // Encontrar o índice do último valor diferente de 0
-            for (let i = array.length - 1; i >= 0; i--) {
-                if (array[i] !== 0) {
-                    lastNonZeroIndex = i;
-                    break;
-                }
-            }
-            
-            // Retornar o array até o último índice não zero
-            return array.slice(0, lastNonZeroIndex + 1);
-        }
-
-        function formatBateria(bateria) {
-            const e = removeTrailingZeros(checkpoints);
-            const l = e.length;
-            switch (tentativa) {
-                case "1° tentativa":
-                    bateria.tempo_total_1 = e[l-1];
-                    bateria.tempo_checkpoints_1 = e;
-                    break;
-                case "2° tentativa":
-                    bateria.tempo_total_2 = e[l-1];
-                    bateria.tempo_checkpoints_2 = e;
-                    break;
-                default:
-                    return bateria;
-            }
-            return bateria;
-        }
-
-        let bateria;
-
-        if (tentativa === "Tentativas realizadas") {
-            displayMessage("warning", "Todas as tentativas já foram realizadas");
-            return;
-        }
-
-        if (round === 0) {
-            bateria = fetchedTentativa;
-            bateria.bateria[heat] = formatBateria(bateria.bateria[heat]);
-            try {
-                const response = await api.post(`/classificatorias/${equipe}`, bateria);
-                setFetchedTentativa(response.data);
-            } catch (error) {
-                console.log(error);
-                displayMessage("error", "Erro no envio da tentativa");
-            }
-        } else if (round === 1) {
-            bateria = fetchedTentativa;
-            bateria.bateria[0] = formatBateria(bateria.bateria[0]);
-            try {
-                const response = await api.post(`/repescagem/${equipe}`, bateria);
-                setFetchedTentativa(response.data);
-            } catch (error) {
-                console.log(error);
-                displayMessage("error", "Erro no envio da tentativa");
-            }
-        } else if (round === 2) {
-            bateria = fetchedTentativa;
-            bateria.bateria[0] = formatBateria(bateria.bateria[0]);
-            try {
-                const response = await api.post(`/finais/${equipe}`, bateria);
-                setFetchedTentativa(response.data);
-            } catch (error) {
-                console.log(error);
-                displayMessage("error", "Erro no envio da tentativa");
-            }
-        } else if (round === 3) {
-            bateria = fetchedTentativa;
-            bateria.bateria[0] = formatBateria(bateria.bateria[0]);
-            try {
-                const response = await api.post(`/arrancada/${equipe}`, bateria);
-                setFetchedTentativa(response.data);
-            } catch (error) {
-                console.log(error);
-                displayMessage("error", "Erro no envio da tentativa");
-            }
-        }
-        if (categoria != null && equipe != null && round != null && heat != null) displayMessage("success", "Tentativa enviada");
-    };
+    }
 
     // Sensores
     const [serialData, setSerialData] = useState(null); // Store the serial data
     const [connected, setConnected] = useState(false); // Track if the serial port is connected
 
     useEffect(() => {
-        console.log(serialData);
         if (disableSensors || serialData === null) {
             setSerialData(null);
             return;
@@ -519,48 +336,56 @@ function Cronometro() {
                     <Flex gap="large">
                         <Select 
                             style={{ width: 200 }}
-                            onChange={e => setCategoria(e)}
+                            onChange={e => {setCategoria(e); fetchEquipesPorCategoria(e);}}
                             placeholder="Categoria"
                             size="large"
                         >
-                            <Select.Option value={1}>Seguidor Avançado</Select.Option>
-                            <Select.Option value={2}>Seguidor Mirim</Select.Option>
+                            <Select.Option value={0}>Seguidor Avançado</Select.Option>
+                            <Select.Option value={1}>Seguidor Mirim</Select.Option>
                         </Select>
                         <Select
-                            style={{ width: 200 }}
-                            value={equipe}
+                            style={{ width: 250 }}
                             onSelect={e => setEquipe(e)}
+                            value={equipe}
                             placeholder="Equipe"
-                            options={selectOptions}
                             size="large"
                         >
+                            {
+                                equipes.map(({id, nome}) => {
+                                    return <Select.Option key={id} value={id}>{nome}</Select.Option>
+                                })
+                            }
                         </Select>
                         <Select 
                             style={{ width: 150 }}
-                            value={round}
-                            onSelect={e => setRound(e)}
-                            disabled={disableRound}
+                            onSelect={e => setEtapa(e)}
                             placeholder="Etapa"
                             size="large"
                         >
                             <Select.Option value={0}>Classificatória</Select.Option>
-                            <Select.Option value={1} disabled={disableRepescagem}>Repescagem</Select.Option>
+                            <Select.Option value={1}>Repescagem</Select.Option>
                             <Select.Option value={2}>Final</Select.Option>
                             <Select.Option value={3}>Arrancada</Select.Option>
                         </Select>
                         <Select
                             style={{ width: 120 }}
-                            value={heat}
-                            disabled={disableHeats}
-                            onSelect={e => setHeat(e)}
+                            onSelect={e => setBateria(e)}
                             placeholder="Bateria"
                             size="large"
                         >
                             <Select.Option value={0}>Bateria 1</Select.Option>
                             <Select.Option value={1}>Bateria 2</Select.Option>
-                            <Select.Option disabled={disableHeat3} value={2}>Bateria 3</Select.Option>
+                            <Select.Option value={2}>Bateria 3</Select.Option>
                         </Select>
-                        <Title level={3} style={{ color: '#EDA500', marginBottom: 0, width: 260 }}>{tentativa}</Title>
+                        <Select
+                            style={{ width: 130 }}
+                            onSelect={e => {setTentativa(e)}}
+                            placeholder="Tentativa"
+                            size="large"
+                        >
+                            <Select.Option value={0}>Tentativa 1</Select.Option>
+                            <Select.Option value={1}>Tentativa 2</Select.Option>
+                        </Select>
                     </Flex>
                     <div style={{padding: 10}} />
                     {/* Cronometro */}
@@ -593,7 +418,7 @@ function Cronometro() {
                                 components: {
                                     Typography: {
                                         titleMarginBottom: 0,
-                                        titleMarginTop: 0.
+                                        titleMarginTop: 0
                                     }
                                 }
                             }}
@@ -661,9 +486,12 @@ function Cronometro() {
                                     onSearch={e => updatedCheckpoint(e)}
                                     style={{width: 450}}
                                 />
-                                <Button type="Salvar" text="Salvar" onClick={sendData} />
                             </Flex>
                             <Button type="Add" text="Adicionar tempo" onClick={saveTime} />
+                        </Flex>
+                        <Flex gap="large" justify="right">
+                            <Button type="Delete" text="Apagar" onClick={apagarTentativa} />
+                            <Button type="Salvar" text="Salvar" onClick={adicionarTentativa} />
                         </Flex>
                     </Flex>
                 <Flex style={{width: "100%"}} justify="right" gap={"middle"}>
